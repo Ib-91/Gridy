@@ -12,7 +12,7 @@ Noyau minimal et fonctionnalités:
 - Interpréter la formule puis évaluer le résultat #6 (dépend de #5) de manière récursif
 - Coder des fonctions (SUM, MAX, MIN, AVG...etc) #7 (dépend de #6)
 - Générer un nouveau tableau contenant les résultats #8 (dépend de #6)
-- Créer un fichier csv contenant ce tableau #9 (dépend de #7)
+- Créer un fichier csv contenant ce tableau #9 (dépend de #7) bibliothèque : pandas
 
 Supplémentaires:
 -Gérer les erreurs : Formule invalide et afficher des messages d'erreur (dépend de #6) comme (#SYNTAXE! dépend de #5), boucle (#CYCLE! dépend de #4) OU juste mettre le message d'erreur.
