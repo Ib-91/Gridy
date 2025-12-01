@@ -1,12 +1,15 @@
 import pandas
 
+
 class Cellule:
     def __init__(self, texte):
-        self.texte = texte # texte de la cellule
-        self.valeur = None   # le résultat numérique
-        self.en_cours = False  # pour détecter les cycles
+        self.texte = texte      # texte brut de la cellule (ex: "3", "=A1+2")
+        self.valeur = None      # valeur numérique ou texte après calcul
+        self.en_cours = False   # pour détecter les cycles
 
-def indice_to_colonne(ind): # convertir un indice en lettre de colonne
+
+def indice_to_colonne(ind):
+    # convertit un indice de colonne (0,1,2,...) en 'A','B',..., 'AA', etc.
     resultat = ""
     while True:
         ind, reste = divmod(ind, 26)
@@ -17,87 +20,136 @@ def indice_to_colonne(ind): # convertir un indice en lettre de colonne
         ind -= 1
     return resultat
 
+
 def creer_dico(fichier):
     nb_lignes, nb_colonnes = fichier.shape
     grille = {}
 
-    for i in range(nb_lignes) : # index lignes
-        for j in range(nb_colonnes) : # index colonnes
+    for i in range(nb_lignes):
+        for j in range(nb_colonnes):
             lettre_colonne = indice_to_colonne(j)
             numero_ligne = i + 1
-            nom_cellule = f"{lettre_colonne}{numero_ligne}" 
-            texte = fichier.iat[i, j]  # texte de la cellule
-            if pandas.isna(texte): # si la cellule est vide, on met une chaîne vide
-                texte = "" 
+            nom_cellule = f"{lettre_colonne}{numero_ligne}"
 
-            grille[nom_cellule] = Cellule(str(texte)) # ajouter la cellule au dictionnaire
+            texte = fichier.iat[i, j]
+            if pandas.isna(texte):
+                texte = ""
+
+            cellule = Cellule(str(texte))
+
+            # initialiser la valeur directement si ce n'est pas une formule
+            if not cellule.texte.startswith("="):
+                txt = cellule.texte
+                if txt == "":
+                    cellule.valeur = ""
+                else:
+                    try: # on essaye de convertir en nombre, si erreur alors c'est du texte
+                        cellule.valeur = float(txt)
+                    except ValueError:
+                        cellule.valeur = txt 
+            grille[nom_cellule] = cellule # on ajoute la cellule au dictionnaire
 
     return grille
 
 
-def evaluer_cellule(nom_cellule, dico):
-   # pas encore implémenté
-    cellule = dico[nom_cellule]
+# fonctions pour les formules
+def SUM(*args):
+    return sum(args)
 
+
+def AVG(*args):
+    return sum(args) / len(args) if args else 0
+
+def COUNT(*args):
+    return len(args)
+
+#def COUNTA(*args):
+
+
+# fonction principale pour évaluer une cellule
+
+def evaluer_cellule(nom, dico, valeurs):
+    cellule = dico[nom]
+
+    # pour détecter les cycles
+    if cellule.en_cours:
+        cellule.valeur = "#CYCLE"
+        valeurs[nom] = cellule.valeur
+        return cellule.valeur
+
+    # si on connait déja la valeur, on ne va pas la recalculer
     if cellule.valeur is not None:
         return cellule.valeur
-    if cellule.en_cours:
-        raise ValueError(f"Cycle détecté dans la cellule {nom_cellule}")
+
+
+    if not cellule.texte.startswith("="):     # si c'est pas une formule, c'est soit une chaîne vide, soit une valeur numérique, soit du texte
+        texte = cellule.texte
+        if texte == "":
+            cellule.valeur = ""
+        else: # si ce n'est pas une chaine vide, on vérifie si c'est un nombre
+            try:
+                cellule.valeur = float(texte)
+            except ValueError:
+                cellule.valeur = texte
+        # si ce n'est pas un nombre ou une formule, c'est du texte
+        valeurs[nom] = cellule.valeur
+        return cellule.valeur
+
+    # c'est une formule, on évalue (sauf si il y a une erreur dans la formule, dans ce cas on affiche #ERREUR)
     cellule.en_cours = True
+    formule = cellule.texte[1:]
 
-    if cellule.texte.startswith('='):
-        if cellule.texte.contains('SUM'):
-            evaluer_somme(cellule, dico)
+    # on évalue la formule en utilisant le dictionnaire des valeurs
+    try:
+        cellule.valeur = eval(formule, valeurs)
+    except Exception:
+        cellule.valeur = "#ERREUR"
 
-        if cellule.texte.contains('AVERAGE'):
-            evaluer_average(cellule, dico)
-
-        if cellule.texte.contains('IF'):
-            evaluer_if(cellule, dico)
-
-        if cellule.texte.contains('MAX'):
-            evaluer_max(cellule, dico)  
-
-        if cellule.texte.contains('MIN'):
-            evaluer_min(cellule, dico)
-
-        if cellule.texte.contains('COUNT'):
-            evaluer_count(cellule, dico)
-
-        if cellule.texte.contains('PRODUCT'):
-            evaluer_product(cellule, dico)
-
-        if cellule.texte.contains('COUNTA'): 
-            evaluer_counta(cellule, dico)
-
-        if cellule.texte.contains('MEDIAN'):
-            evaluer_median(cellule, dico)
-        
-        try :
-            eval(cellule.texte[1:],dico)
-    else :
-        try :
-            cellule.valeur = float(cellule.texte)
-        except ValueError :
-            
-
-
-# def calculer_valeurs(dico):
+    cellule.en_cours = False
+    valeurs[nom] = cellule.valeur # on remplit le dictionnaire des valeurs avec la valeur calculée
+    return cellule.valeur
 
 
 
+
+
+# fonction pour afficher le dictionnaire de cellules
+
+def afficher_dico(dico):
+    affichage = []
+
+    for nom in dico.keys():
+        cellule = dico[nom]
+        valeur_str = str(cellule.valeur) if cellule.valeur is not None else "None"
+        affichage.append(f"'{nom}' : ('{cellule.texte}', {valeur_str})")
+
+    print("----------------------------")
+    print(",\n".join(affichage)) 
+    print("----------------------------")
 
 
 """Programme principal"""
 
 
+fichier = pandas.read_csv("test.csv", header=None)
+dico = creer_dico(fichier)
 
-fichier = pandas.read_csv("test.csv", header=None) # lecture du fichier csv
-nb_lignes, nb_colonnes = fichier.shape # compter les lignes et colonnes
-dico = creer_dico(fichier) # On crée le dictionnaire des cellules avec leur texte brut
-# afficher_dico(dico) # On affiche le dictionnaire des cellules
+# on initialise le dictionnaire des valeurs avec les fonctions, qui passera en paramètre à eval
 
-# calculer_valeurs(dico) # On appelle la fonction pour calculer les valeurs des cellules
+valeurs = {
+    "SUM": SUM,
+    "AVG": AVG,
+    "MAX": max,
+    "MIN": min,
+}
+
+for nom, cellule in dico.items():
+    if cellule.valeur is not None:
+        valeurs[nom] = cellule.valeur
+
+# on rajoute les valeurs déja connues dans le dictionnaire des valeurs
+for nom in dico:
+    evaluer_cellule(nom, dico, valeurs)
 
 
-
+afficher_dico(dico)
