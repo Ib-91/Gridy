@@ -1,4 +1,4 @@
-import pandas
+import pandas 
 
 
 class Cellule:
@@ -57,6 +57,11 @@ class Eval(dict):
         self["AVG"] = AVG
         self["MAX"] = max
         self["MIN"] = min
+        self["ROUND"] = round
+        self["CONCAT"] =
+        self["PRODUCT"] = product
+        self["COUNT"] =
+        self["COUNTA"] =counta
 
     def __getitem__(self, cle):
 
@@ -137,10 +142,12 @@ class Eval(dict):
                             continue  # cellule qui n'existe pas
                         val = self[cell_name] #eval.__getitem__(cell_name)
 
+
                         #erreur on la renvoie
                         if isinstance(val, str) and val.startswith("#"):
                             return val
-
+                        if self.tab[cell_name].en_cours:
+                            val=0; # si la cellule est en cours de calcul, on ignore sa valeur
                         if isinstance(val, (int, float)):
                             total += val
                 continue # Fin du Cas 1
@@ -157,12 +164,12 @@ class Eval(dict):
 
                 continue
 
-            # Cas 3, SUM(A1, 5, B2)
+            # Cas 3, nb
             if isinstance(arg, (int, float)):
                 total += arg
                 continue
 
-            # Cas 4 à voir ( A:A colonne , 1:1 ligne , inverse des plages, Ignorer le texte, etc)
+            # Cas 4 à voir ( A:A colonne , 1:1 ligne , inverse des plages, etc)
             continue
 
         return total
