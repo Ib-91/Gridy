@@ -19,6 +19,12 @@ def indice_to_colonne(ind): # convertit un indice (0,1,2,...) en lettre de colon
         ind -= 1
     return resultat
 
+def colonne_to_indice(colonne): # convertit une lettre de colonne (A,B,C,...etc) en indice (0,1,2,...)
+    ind = 0
+    for lettre in colonne:
+        ind = ind * 26 + (ord(lettre.upper()) - ord('A') + 1)
+    return ind - 1
+
 
 def creer_dico(fichier): # crée le dictionnaire à partir du fichier pandas
     nb_lignes, nb_colonnes = fichier.shape
@@ -38,11 +44,6 @@ def creer_dico(fichier): # crée le dictionnaire à partir du fichier pandas
 
     return grille
 
-
-def SUM(*args): # fonction pour calculer la somme
-    return sum(args)
-
-
 def AVG(*args): # fonction pour calculer la moyenne
     return sum(args) / len(args) if args else 0
 
@@ -52,7 +53,7 @@ class Eval(dict):
         self.tab = tab  # dico des Cellule
         super().__init__()
 
-        self["SUM"] = SUM
+        self["SUM"] = self.SUM # méthode de la classe
         self["AVG"] = AVG
         self["MAX"] = max
         self["MIN"] = min
@@ -98,7 +99,73 @@ class Eval(dict):
         cellule.valeur = val
         self[cle] = val
         return val
+    
+    def get_pos(self, name):
+        # "B12" devient (1, 12), "A20" devient (0, 20)
+        col = ''
+        row = ''
+        for char in name:
+            if char.isalpha():
+                col += char
+            elif char.isdigit():
+                row += char
+            else:
+                return "#ERREUR"
+        col_ind = colonne_to_indice(col)
+        row_ind = int(row)
+        return col_ind, row_ind
 
+    def SUM(self, *args):
+        total = 0
+
+        for arg in args:
+
+            # Cas 1, plage "A1:B5"
+            if isinstance(arg, str) and ":" in arg:
+                cell1, cell2 = arg.split(':')
+                col1, row1 = self.get_pos(cell1)
+                col2, row2 = self.get_pos(cell2)
+
+                # Erreur dans get_pos
+                if isinstance(col1, str) or isinstance(col2, str):
+                    return "#ERREUR"
+
+                for row in range(min(row1, row2), max(row1, row2) + 1):
+                    for col in range(min(col1, col2), max(col1, col2) + 1):
+                        cell_name = f"{indice_to_colonne(col)}{row}"
+                        if cell_name not in self.tab:
+                            continue  # cellule qui n'existe pas
+                        val = self[cell_name] #eval.__getitem__(cell_name)
+
+                        #erreur on la renvoie
+                        if isinstance(val, str) and val.startswith("#"):
+                            return val
+
+                        if isinstance(val, (int, float)):
+                            total += val
+                continue # Fin du Cas 1
+
+            # Cas 2, cellule unique "A1"
+            if isinstance(arg, str):
+                val = self[arg]
+
+                if isinstance(val, str) and val.startswith("#"):
+                    return val
+
+                if isinstance(val, (int, float)):
+                    total += val
+
+                continue
+
+            # Cas 3, SUM(A1, 5, B2)
+            if isinstance(arg, (int, float)):
+                total += arg
+                continue
+
+            # Cas 4 à voir ( A:A colonne , 1:1 ligne , inverse des plages, Ignorer le texte, etc)
+            continue
+
+        return total
 
 
 def calculer_valeurs(dico): # calcule toutes les cellules
