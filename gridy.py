@@ -44,9 +44,6 @@ def creer_dico(fichier): # crée le dictionnaire à partir du fichier pandas
 
     return grille
 
-def AVG(*args): # fonction pour calculer la moyenne
-    return sum(args) / len(args) if args else 0
-
 
 class Eval(dict):
     def __init__(self, tab):
@@ -54,14 +51,14 @@ class Eval(dict):
         super().__init__()
 
         self["SUM"] = self.SUM # méthode de la classe
-        self["AVG"] = AVG
-        self["MAX"] = max
-        self["MIN"] = min
-        self["ROUND"] = round
-        self["CONCAT"] =
-        self["PRODUCT"] = product
-        self["COUNT"] =
-        self["COUNTA"] =counta
+        self["PRODUCT"] = self.PRODUCT
+        self["AVG"] = self.AVG
+        self["MIN"] = self.MIN        
+        self["MAX"] = self.MAX
+        self["CONCAT"] = self.CONCAT
+        self["LEN"] = self.LEN #nombre de caractères dans une cellule
+        self["COUNT"] = self.COUNT #les valeurs numériques
+        self["COUNTA"] =self.COUNTA #toutes les valeurs non vides
 
     def __getitem__(self, cle):
 
@@ -105,74 +102,141 @@ class Eval(dict):
         self[cle] = val
         return val
     
-    def get_pos(self, name):
+    def get_pos(self, nom_cellule):
         # "B12" devient (1, 12), "A20" devient (0, 20)
         col = ''
         row = ''
-        for char in name:
+        for char in nom_cellule:
             if char.isalpha():
                 col += char
             elif char.isdigit():
                 row += char
             else:
-                return "#ERREUR"
+                return "#ERREURSYNTAXE"
         col_ind = colonne_to_indice(col)
         row_ind = int(row)
         return col_ind, row_ind
+    
+    def LEN(self, arg):
+        #cellule unique "A1"
+        if isinstance(arg, str) and arg in self.tab:
+            val = self[arg]
+            if isinstance(val, str) and val.startswith("#"):
+                return val
+            return len(str(val))
+        #valeur directe
+        return len(str(arg))
+    
+    def analyse_args(self, *args):
+        # FONCTION(A1, "B2:B5", "texte", 5, ...)
+        for arg in args:
+
+            #plage A1:B5
+            if isinstance(arg, str) and ":" in arg:
+                cell1, cell2 = arg.split(":")
+
+                pos1 = self.get_pos(cell1)
+                pos2 = self.get_pos(cell2)
+                if isinstance(pos1, str) or isinstance(pos2, str):
+                    yield "#ERREURSYNTAXE"
+                    return
+                col1, row1 = pos1
+                col2, row2 = pos2
+                for row in range(min(row1, row2), max(row1, row2) + 1):
+                    for col in range(min(col1, col2), max(col1, col2) + 1):
+                        cellule_nom = f"{indice_to_colonne(col)}{row}"
+                        if cellule_nom in self.tab:
+                            yield self[cellule_nom]          
+            #cellule unique "A1"
+            elif isinstance(arg, str) and arg in self.tab:
+                yield self[arg]
+            #valeur directe
+            else:
+                yield arg
 
     def SUM(self, *args):
         total = 0
-
-        for arg in args:
-
-            # Cas 1, plage "A1:B5"
-            if isinstance(arg, str) and ":" in arg:
-                cell1, cell2 = arg.split(':')
-                col1, row1 = self.get_pos(cell1)
-                col2, row2 = self.get_pos(cell2)
-
-                # Erreur dans get_pos
-                if isinstance(col1, str) or isinstance(col2, str):
-                    return "#ERREUR"
-
-                for row in range(min(row1, row2), max(row1, row2) + 1):
-                    for col in range(min(col1, col2), max(col1, col2) + 1):
-                        cell_name = f"{indice_to_colonne(col)}{row}"
-                        if cell_name not in self.tab:
-                            continue  # cellule qui n'existe pas
-                        val = self[cell_name] #eval.__getitem__(cell_name)
-
-
-                        #erreur on la renvoie
-                        if isinstance(val, str) and val.startswith("#"):
-                            return val
-                        if self.tab[cell_name].en_cours:
-                            val=0; # si la cellule est en cours de calcul, on ignore sa valeur
-                        if isinstance(val, (int, float)):
-                            total += val
-                continue # Fin du Cas 1
-
-            # Cas 2, cellule unique "A1"
-            if isinstance(arg, str):
-                val = self[arg]
-
-                if isinstance(val, str) and val.startswith("#"):
-                    return val
-
-                if isinstance(val, (int, float)):
-                    total += val
-
-                continue
-
-            # Cas 3, nb
-            if isinstance(arg, (int, float)):
-                total += arg
-                continue
-
-            # Cas 4 à voir ( A:A colonne , 1:1 ligne , inverse des plages, etc)
-            continue
-
+        for val in self.analyse_args(*args):
+            if isinstance(val, str) and val.startswith("#"):
+                return val
+            if isinstance(val, (int, float)):
+                total += val
         return total
+
+    
+    def PRODUCT(self, *args):
+        produit = 1
+        for val in self.analyse_args(*args):
+            if isinstance(val, str) and val.startswith("#"):
+                return val
+            if isinstance(val, (int, float)):
+                produit *= val
+        return produit
+    
+    def CONCAT(self, *args):
+        resultat = ""
+        for val in self.analyse_args(*args):
+            if isinstance(val, str) and val.startswith("#"):
+                return val
+            resultat += str(val)
+        return resultat
+    
+    def AVG(self, *args):
+        total = 0
+        count = 0
+        for val in self.analyse_args(*args):
+            if isinstance(val, str) and val.startswith("#"):
+                return val
+            if isinstance(val, (int, float)):
+                total += val
+                count += 1
+        if count == 0:
+            return 0
+        return total / count
+
+    
+    def MIN(self, *args):
+        valeurs = []
+        for val in self.analyse_args(*args):
+            if isinstance(val, str) and val.startswith("#"):
+                return val
+            if isinstance(val, (int, float)):
+                valeurs.append(val)
+        if valeurs == []:
+            return 0
+        return min(valeurs)
+
+
+    def MAX(self, *args):
+        valeurs = []
+        for val in self.analyse_args(*args):
+            if isinstance(val, str) and val.startswith("#"):
+                return val
+            if isinstance(val, (int, float)):
+                valeurs.append(val)
+        if valeurs == []:
+            return 0
+        return max(valeurs)
+    
+    def COUNT(self, *args):
+        count = 0
+        for val in self.analyse_args(*args):
+            if isinstance(val, str) and val.startswith("#"):
+                return val
+            if isinstance(val, (int, float)):
+                count += 1
+        return count
+
+    
+    def COUNTA(self, *args):
+        count = 0
+        for val in self.analyse_args(*args):
+            if isinstance(val, str) and val.startswith("#"):
+                return val
+            if val != "":
+                count += 1
+        return count
+
 
 
 def calculer_valeurs(dico): # calcule toutes les cellules
@@ -189,13 +253,27 @@ def afficher_dico(dico):
         valeur_str = str(cellule.valeur) if cellule.valeur is not None else "None"
         line = f"'{nom}' : ('{cellule.texte}', {valeur_str})"
         affichage.append(line)
-
     print("--- Affichage du Dictionnaire des Cellules ---")
     print("{")
     print(",\n".join(affichage))
     print("}")
     print("------------------------------------------")
 
+
+def generer_csv(dico, nb_lignes, nb_colonnes, nom_fichier):
+    data = []
+    for i in range(nb_lignes):
+        ligne = []
+        for j in range(nb_colonnes):
+            nom_cellule = f"{indice_to_colonne(j)}{i+1}"
+            val = dico[nom_cellule].valeur
+            if val is None:
+                val = ""
+            ligne.append(val)
+        data.append(ligne)
+
+    df_resultat = pandas.DataFrame(data)
+    df_resultat.to_csv(nom_fichier, header=False, index=False)
 
 """Programme principal"""
 
@@ -204,3 +282,5 @@ dico = creer_dico(fichier)
 
 calculer_valeurs(dico)
 afficher_dico(dico)
+nb_lignes, nb_colonnes = fichier.shape
+generer_csv(dico, nb_lignes, nb_colonnes, "resultat.csv")
