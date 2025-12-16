@@ -86,7 +86,11 @@ class Eval(dict):
                 val = ""
             else: # si ce n'est pas une chaine vide :
                 try: # on essaye de convertir en nombre
-                    val = float(texte)
+                    f_val = float(texte)
+                    if f_val.is_integer():
+                        val = int(f_val)
+                    else:
+                        val = f_val
                 except ValueError: # si erreur alors on écrit juste le texte
                     val = texte
         else:
@@ -94,6 +98,8 @@ class Eval(dict):
             formule = texte[1:]
             try:
                 val = eval(formule, self) # on évalue en utilisant le dictionnaire de valeurs comme environnement
+                if isinstance(val, float) and val.is_integer(): 
+                    val = int(val)
             except Exception: # si l'évaluation échoue il y a une erreur
                 val = "#ERREUR"
 
